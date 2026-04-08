@@ -150,6 +150,13 @@ le respect ne se demande pas
             background: #3498db;
             margin-bottom: 20px;
         }
+        .error-msg {
+            color: #ff6b6b;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
         @media (max-width: 768px) {
             .ranking-item { flex-direction: column; text-align: center; }
         }
@@ -173,18 +180,18 @@ le respect ne se demande pas
 
         <div id="ranking" class="section active">
             <h2>🏆 Classement des Clans</h2>
-            <button class="refresh-btn" onclick="refreshData()">🔄 Actualiser</button>
+            <button class="refresh-btn" onclick="loadDataFromGitHub()">🔄 Actualiser</button>
             <div class="ranking-tabs">
                 <div class="ranking-tab active" onclick="showRankingPeriod('week')">📅 Cette Semaine</div>
                 <div class="ranking-tab" onclick="showRankingPeriod('month')">📆 Ce Mois</div>
                 <div class="ranking-tab" onclick="showRankingPeriod('year')">🗓️ Cette Année</div>
             </div>
-            <div id="rankingList"><div class="loading">Chargement...</div></div>
+            <div id="rankingList"><div class="loading">Chargement des données...</div></div>
         </div>
 
         <div id="register" class="section">
             <h2>📝 Inscription de votre Clan</h2>
-            <p style="margin-bottom: 15px;">✅ Votre clan apparaîtra directement dans le classement</p>
+            <div id="registerWarning" class="error-msg" style="display:none;"></div>
             <form id="registerForm">
                 <input type="text" id="clanName" placeholder="Nom du clan" required>
                 <input type="text" id="leader" placeholder="Nom du chef" required>
@@ -196,7 +203,7 @@ le respect ne se demande pas
 
         <div id="forum" class="section">
             <h2>💬 Forum Public</h2>
-            <button class="refresh-btn" onclick="refreshData()">🔄 Actualiser</button>
+            <button class="refresh-btn" onclick="loadDataFromGitHub()">🔄 Actualiser</button>
             <form id="forumForm">
                 <input type="text" id="authorName" placeholder="Votre pseudo" required>
                 <textarea id="forumMessage" placeholder="Votre message" required></textarea>
@@ -217,33 +224,103 @@ le respect ne se demande pas
     </div>
 
     <script>
-        // Configuration - Modifié pour ablaye2020
-        const GITHUB_USERNAME = "ablaye2020";
-        const REPO_NAME = "clan-war";
+        // Configuration GitHub d'ablaye2020
+        const GITHUB_RAW_URL = "https://raw.githubusercontent.com/ablaye2020/clan-war/main/data.json";
         
         let currentRankingPeriod = 'week';
         let backgroundMusic = null;
         let musicPlaying = false;
-        let cachedData = { clans: [], forum: [], private_msgs: [] };
+        let globalData = { clans: [], forum: [], private_msgs: [] };
         
-        async function loadData() {
+        async function loadDataFromGitHub() {
             try {
-                const url = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/data.json?t=${Date.now()}`;
-                const response = await fetch(url);
+                document.getElementById('rankingList').innerHTML = '<div class="loading">Chargement...</div>';
+                
+                const response = await fetch(GITHUB_RAW_URL + "?t=" + Date.now());
+                if (!response.ok) throw new Error("Impossible de charger les données");
+                
                 const data = await response.json();
-                cachedData = data;
-                return data;
+                globalData = data;
+                
+                // S'assurer que les structures existent
+                if (!globalData.clans) globalData.clans = [];
+                if (!globalData.forum) globalData.forum = [];
+                if (!globalData.private_msgs) globalData.private_msgs = [];
+                
+                updateRankingDisplay();
+                loadForumDisplay();
+                
+                console.log("✅ Données chargées :", globalData.clans.length + " clans");
+                return true;
             } catch(e) {
                 console.error("Erreur:", e);
-                return cachedData;
+                document.getElementById('rankingList').innerHTML = '<div class="error-msg">⚠️ Impossible de charger les données. Vérifiez que le fichier data.json existe sur GitHub.</div>';
+                return false;
             }
         }
         
-        async function refreshData() {
-            await loadData();
-            updateRanking();
-            loadForum();
-            playSound('ding');
+        function updateRankingDisplay() {
+            let clans = [...globalData.clans];
+            
+            if (currentRankingPeriod === 'week') {
+                clans.sort((a,b) => (b.score_week || 0) - (a.score_week || 0));
+            } else if (currentRankingPeriod === 'month') {
+                clans.sort((a,b) => (b.score_month || 0) - (a.score_month || 0));
+            } else {
+                clans.sort((a,b) => (b.score_year || 0) - (a.score_year || 0));
+            }
+            
+            const container = document.getElementById('rankingList');
+            if (clans.length === 0) {
+                container.innerHTML = '<p>Aucun clan pour le moment. Soyez le premier à vous inscrire !</p>';
+                return;
+            }
+            
+            let periodLabel = currentRankingPeriod === 'week' ? 'pts (semaine)' : (currentRankingPeriod === 'month' ? 'pts (mois)' : 'pts (année)');
+            
+            container.innerHTML = clans.map((clan, index) => {
+                let score = currentRankingPeriod === 'week' ? (clan.score_week || 0) : 
+                           (currentRankingPeriod === 'month' ? (clan.score_month || 0) : (clan.score_year || 0));
+                return `
+                    <div class="ranking-item">
+                        <span class="ranking-number">#${index+1}</span>
+                        <span class="ranking-name">🏰 ${escapeHtml(clan.name)}</span>
+                        <span class="ranking-leader">👑 ${escapeHtml(clan.leader)}</span>
+                        <span class="ranking-score">⭐ ${score} ${periodLabel}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function loadForumDisplay() {
+            const forum = globalData.forum || [];
+            const container = document.getElementById('forumMessages');
+            if (forum.length === 0) {
+                container.innerHTML = '<p>Soyez le premier à poster un message !</p>';
+                return;
+            }
+            container.innerHTML = forum.map(msg => `
+                <div class="message">
+                    <strong>${escapeHtml(msg.author)}</strong> <small>${msg.date}</small><br>
+                    ${escapeHtml(msg.message)}<br>
+                    <button class="like-btn" onclick="likeMessageLocally(${msg.id})">❤️ ${msg.likes || 0} likes</button>
+                </div>
+            `).join('');
+        }
+        
+        function likeMessageLocally(id) {
+            const msg = globalData.forum.find(m => m.id == id);
+            if (msg) {
+                msg.likes = (msg.likes || 0) + 1;
+                // Sauvegarder dans un stockage temporaire pour l'admin
+                localStorage.setItem('pending_forum_likes', JSON.stringify(globalData.forum));
+                loadForumDisplay();
+                playSound('ding');
+                document.getElementById('registerWarning').innerHTML = '❤️ Like enregistré ! Il sera visible quand l\'admin synchronisera.';
+                setTimeout(() => {
+                    document.getElementById('registerWarning').innerHTML = '';
+                }, 2000);
+            }
         }
         
         function playSound(type) {
@@ -291,82 +368,20 @@ le respect ne se demande pas
         function showSection(sectionId) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.getElementById(sectionId).classList.add('active');
-            if(sectionId === 'ranking') updateRanking();
-            if(sectionId === 'forum') loadForum();
+            if(sectionId === 'ranking') updateRankingDisplay();
+            if(sectionId === 'forum') loadForumDisplay();
         }
         
         function showRankingPeriod(period) {
             currentRankingPeriod = period;
             document.querySelectorAll('.ranking-tab').forEach(tab => tab.classList.remove('active'));
             event.target.classList.add('active');
-            updateRanking();
-        }
-        
-        async function updateRanking() {
-            const data = await loadData();
-            let clans = data.clans || [];
-            
-            if(currentRankingPeriod === 'week') {
-                clans.sort((a,b) => (b.score_week || 0) - (a.score_week || 0));
-            } else if(currentRankingPeriod === 'month') {
-                clans.sort((a,b) => (b.score_month || 0) - (a.score_month || 0));
-            } else {
-                clans.sort((a,b) => (b.score_year || 0) - (a.score_year || 0));
-            }
-            
-            const container = document.getElementById('rankingList');
-            if(clans.length === 0) {
-                container.innerHTML = '<p>Aucun clan pour le moment. Soyez le premier à vous inscrire !</p>';
-                return;
-            }
-            
-            let periodLabel = currentRankingPeriod === 'week' ? 'pts (semaine)' : (currentRankingPeriod === 'month' ? 'pts (mois)' : 'pts (année)');
-            
-            container.innerHTML = clans.map((clan, index) => {
-                let score = currentRankingPeriod === 'week' ? (clan.score_week || 0) : 
-                           (currentRankingPeriod === 'month' ? (clan.score_month || 0) : (clan.score_year || 0));
-                return `
-                    <div class="ranking-item">
-                        <span class="ranking-number">#${index+1}</span>
-                        <span class="ranking-name">🏰 ${escapeHtml(clan.name)}</span>
-                        <span class="ranking-leader">👑 ${escapeHtml(clan.leader)}</span>
-                        <span class="ranking-score">⭐ ${score} ${periodLabel}</span>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        async function loadForum() {
-            const data = await loadData();
-            const forum = data.forum || [];
-            const container = document.getElementById('forumMessages');
-            if(forum.length === 0) {
-                container.innerHTML = '<p>Soyez le premier à poster un message !</p>';
-                return;
-            }
-            container.innerHTML = forum.map(msg => `
-                <div class="message">
-                    <strong>${escapeHtml(msg.author)}</strong> <small>${msg.date}</small><br>
-                    ${escapeHtml(msg.message)}<br>
-                    <button class="like-btn" onclick="likeMessage(${msg.id})">❤️ ${msg.likes || 0} likes</button>
-                </div>
-            `).join('');
-        }
-        
-        async function likeMessage(id) {
-            const data = await loadData();
-            const msg = data.forum.find(m => m.id == id);
-            if(msg) {
-                msg.likes = (msg.likes || 0) + 1;
-                localStorage.setItem('pending_likes', JSON.stringify(data.forum));
-                playSound('ding');
-                loadForum();
-            }
+            updateRankingDisplay();
         }
         
         document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = await loadData();
+            
             const newClan = {
                 id: Date.now(),
                 name: document.getElementById('clanName').value,
@@ -377,19 +392,24 @@ le respect ne se demande pas
                 score_year: 0,
                 created_at: new Date().toISOString()
             };
-            data.clans.push(newClan);
-            localStorage.setItem('pending_clans', JSON.stringify(data.clans));
+            
+            // Sauvegarder dans le stockage local pour l'admin
+            let pendingClans = JSON.parse(localStorage.getItem('pending_clans') || '[]');
+            pendingClans.push(newClan);
+            localStorage.setItem('pending_clans', JSON.stringify(pendingClans));
+            
             playSound('ding');
-            document.getElementById('registerMessage').innerHTML = '<p class="success">✅ Votre clan a été créé ! Il apparaîtra quand l\'admin aura synchronisé.</p>';
-            e.target.reset();
+            document.getElementById('registerMessage').innerHTML = '<p class="success">✅ Votre clan a été enregistré ! Il apparaîtra quand Joyboy aura synchronisé les données.</p>';
+            document.getElementById('registerWarning').innerHTML = '⏳ En attente de validation par l\'administrateur.';
             setTimeout(() => {
                 document.getElementById('registerMessage').innerHTML = '';
-            }, 3000);
+            }, 4000);
+            e.target.reset();
         });
         
         document.getElementById('forumForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = await loadData();
+            
             const newMsg = {
                 id: Date.now(),
                 author: document.getElementById('authorName').value,
@@ -397,24 +417,34 @@ le respect ne se demande pas
                 likes: 0,
                 date: new Date().toLocaleString()
             };
-            data.forum.unshift(newMsg);
-            localStorage.setItem('pending_forum', JSON.stringify(data.forum));
+            
+            let pendingForum = JSON.parse(localStorage.getItem('pending_forum') || '[]');
+            pendingForum.unshift(newMsg);
+            localStorage.setItem('pending_forum', JSON.stringify(pendingForum));
+            
             playSound('ding');
-            loadForum();
+            document.getElementById('registerWarning').innerHTML = '✅ Message enregistré ! Il sera visible quand l\'admin synchronisera.';
+            setTimeout(() => {
+                document.getElementById('registerWarning').innerHTML = '';
+            }, 3000);
             e.target.reset();
+            loadForumDisplay();
         });
         
         document.getElementById('privateForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = await loadData();
+            
             const newMsg = {
                 id: Date.now(),
                 sender: document.getElementById('senderName').value,
                 message: document.getElementById('privateMsg').value,
                 date: new Date().toLocaleString()
             };
-            data.private_msgs.push(newMsg);
-            localStorage.setItem('pending_private', JSON.stringify(data.private_msgs));
+            
+            let pendingPrivate = JSON.parse(localStorage.getItem('pending_private') || '[]');
+            pendingPrivate.push(newMsg);
+            localStorage.setItem('pending_private', JSON.stringify(pendingPrivate));
+            
             playSound('ding');
             document.getElementById('privateMessage').innerHTML = '<p class="success">✅ Message envoyé à Joyboy !</p>';
             e.target.reset();
@@ -433,10 +463,10 @@ le respect ne se demande pas
             });
         }
         
+        // Chargement initial
         initMusic();
-        refreshData();
-        setInterval(() => { refreshData(); }, 10000);
+        loadDataFromGitHub();
+        setInterval(loadDataFromGitHub, 30000);
     </script>
 </body>
 </html>
-info purge 24 .. la voix de la purge 
