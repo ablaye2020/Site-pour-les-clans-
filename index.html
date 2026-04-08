@@ -5,7 +5,7 @@ le respect ne se demande pas
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clans War - Bleu & Blanc</title>
+    <title>Clans War - Classement Officiel</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -50,14 +50,6 @@ le respect ne se demande pas
             background: #7cb8ff;
             color: white;
         }
-        .btn-logout {
-            background: #ffffff;
-            color: #0a2b4e;
-            position: absolute;
-            top: 20px;
-            right: 20px;
-        }
-        .btn-logout:hover { background: #ff6b6b; color: white; }
         .section {
             background: rgba(255,255,255,0.1);
             backdrop-filter: blur(5px);
@@ -68,7 +60,7 @@ le respect ne se demande pas
             border: 1px solid rgba(255,255,255,0.2);
         }
         .section.active { display: block; }
-        .clan-card, .admin-card {
+        .clan-card {
             background: rgba(255,255,255,0.15);
             padding: 15px;
             border-radius: 10px;
@@ -91,7 +83,7 @@ le respect ne se demande pas
             font-weight: bold;
             color: #7cb8ff;
         }
-        form input, form textarea, form select {
+        form input, form textarea {
             width: 100%;
             padding: 12px;
             margin: 10px 0;
@@ -113,21 +105,19 @@ le respect ne se demande pas
             font-size: 12px;
             margin-left: 10px;
         }
-        .pending { background: #ffaa44; padding: 5px 10px; border-radius: 5px; font-size: 12px; color: #0a2b4e; }
-        .approved { background: #4caf50; padding: 5px 10px; border-radius: 5px; font-size: 12px; }
-        .admin-badge { background: #7cb8ff; color: #0a2b4e; padding: 2px 8px; border-radius: 10px; font-size: 10px; }
-        .login-box {
-            max-width: 400px;
-            margin: 50px auto;
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(10px);
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-        .error { color: #ffaa44; margin-top: 10px; }
         .success { color: #4caf50; }
+        .admin-link {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: white;
+            text-decoration: none;
+        }
+        .admin-link:hover { background: rgba(255,255,255,0.4); }
         .music-control {
             position: fixed;
             bottom: 20px;
@@ -140,149 +130,93 @@ le respect ne se demande pas
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             font-size: 24px;
             z-index: 1000;
         }
         @media (max-width: 768px) {
             .ranking-item { flex-direction: column; text-align: center; }
             button { padding: 8px 16px; }
-            .music-control { width: 40px; height: 40px; font-size: 18px; }
         }
     </style>
 </head>
 <body>
-    <div id="app">
-        <!-- Écran de connexion -->
-        <div id="loginScreen" class="login-box">
-            <h2>🔐 Accès Admin</h2>
-            <p>Réservé aux admins de la communauté</p>
-            <form id="loginForm">
-                <input type="text" id="loginUsername" placeholder="Pseudo" required>
-                <input type="password" id="loginPassword" placeholder="Mot de passe" required>
-                <button type="submit">Se connecter</button>
-            </form>
-            <div id="loginError" class="error"></div>
+    <div class="container">
+        <!-- Lien discret vers l'admin (en bas à gauche) -->
+        <a href="admin.html" class="admin-link">🔒 Accès Admin</a>
+        
+        <!-- Contrôle musique -->
+        <div class="music-control" onclick="toggleMusic()" id="musicBtn">
+            🎵
+        </div>
+        
+        <header>
+            <h1>🏆 Clan Wars 🏆</h1>
+            <p>Le classement officiel géré par <span class="joyboy">Joyboy</span></p>
+            <nav>
+                <button onclick="showSection('ranking')">🏅 Classement</button>
+                <button onclick="showSection('register')">📝 Inscription Clan</button>
+                <button onclick="showSection('forum')">💬 Forum Public</button>
+                <button onclick="showSection('private')">✉️ Message aux Admins</button>
+            </nav>
+        </header>
+
+        <!-- Classement -->
+        <div id="ranking" class="section active">
+            <h2>🏆 Top des Clans</h2>
+            <div id="rankingList"></div>
         </div>
 
-        <!-- Interface principale -->
-        <div id="mainApp" style="display:none;">
-            <button class="btn-logout" onclick="logout()">🚪 Déconnexion</button>
-            
-            <!-- Contrôle musique -->
-            <div class="music-control" onclick="toggleMusic()" id="musicBtn">
-                🎵
-            </div>
-            
-            <div class="container">
-                <header>
-                    <h1>🏆 Clan Wars 🏆</h1>
-                    <p>Le classement officiel géré par <span class="joyboy">Joyboy</span> et ses admins</p>
-                    <nav>
-                        <button onclick="showSection('ranking')">🏅 Classement</button>
-                        <button onclick="showSection('register')">📝 Inscription Clan</button>
-                        <button onclick="showSection('forum')">💬 Forum Public</button>
-                        <button onclick="showSection('private')">✉️ Message aux Admins</button>
-                        <button id="adminBtn" onclick="showSection('admin')" style="display:none;">👑 Panel Admin</button>
-                    </nav>
-                </header>
+        <!-- Inscription -->
+        <div id="register" class="section">
+            <h2>📝 Inscription de votre Clan</h2>
+            <form id="registerForm">
+                <input type="text" id="clanName" placeholder="Nom du clan" required>
+                <input type="text" id="leader" placeholder="Nom du chef" required>
+                <textarea id="description" placeholder="Description du clan"></textarea>
+                <button type="submit">Soumettre pour approbation</button>
+            </form>
+            <div id="registerMessage"></div>
+        </div>
 
-                <!-- Classement -->
-                <div id="ranking" class="section active">
-                    <h2>🏆 Top des Clans</h2>
-                    <div id="rankingList"></div>
-                </div>
+        <!-- Forum -->
+        <div id="forum" class="section">
+            <h2>💬 Forum Public</h2>
+            <form id="forumForm">
+                <input type="text" id="authorName" placeholder="Votre pseudo" required>
+                <textarea id="forumMessage" placeholder="Votre message" required></textarea>
+                <button type="submit">Publier</button>
+            </form>
+            <div id="forumMessages"></div>
+        </div>
 
-                <!-- Inscription -->
-                <div id="register" class="section">
-                    <h2>📝 Inscription de votre Clan</h2>
-                    <form id="registerForm">
-                        <input type="text" id="clanName" placeholder="Nom du clan" required>
-                        <input type="text" id="leader" placeholder="Nom du chef" required>
-                        <textarea id="description" placeholder="Description du clan"></textarea>
-                        <button type="submit">Soumettre pour approbation</button>
-                    </form>
-                    <div id="registerMessage"></div>
-                </div>
-
-                <!-- Forum -->
-                <div id="forum" class="section">
-                    <h2>💬 Forum Public</h2>
-                    <form id="forumForm">
-                        <input type="text" id="authorName" placeholder="Votre pseudo" required>
-                        <textarea id="forumMessage" placeholder="Votre message" required></textarea>
-                        <button type="submit">Publier</button>
-                    </form>
-                    <div id="forumMessages"></div>
-                </div>
-
-                <!-- Message Privé -->
-                <div id="private" class="section">
-                    <h2>✉️ Envoyer un message aux Admins</h2>
-                    <form id="privateForm">
-                        <input type="text" id="senderName" placeholder="Votre nom" required>
-                        <textarea id="privateMsg" placeholder="Votre message" required></textarea>
-                        <button type="submit">Envoyer</button>
-                    </form>
-                    <div id="privateMessage"></div>
-                </div>
-
-                <!-- Panel Admin -->
-                <div id="admin" class="section">
-                    <h2>👑 Panel Administration</h2>
-                    <p>Bienvenue, <span id="currentAdminName"></span> <span class="admin-badge">Admin</span></p>
-                    
-                    <h3>📋 Gestion des Admins</h3>
-                    <div id="adminList"></div>
-                    <form id="addAdminForm" style="margin-top:10px;">
-                        <input type="text" id="newAdminName" placeholder="Pseudo du nouvel admin" required>
-                        <input type="password" id="newAdminPass" placeholder="Mot de passe" required>
-                        <button type="submit">➕ Ajouter un admin</button>
-                    </form>
-
-                    <h3>⏳ Clans en attente</h3>
-                    <div id="pendingClans"></div>
-
-                    <h3>⭐ Entrer les notes</h3>
-                    <div id="scoreInputs"></div>
-
-                    <h3>📬 Messages reçus</h3>
-                    <div id="adminMessages"></div>
-                </div>
-            </div>
+        <!-- Message Privé -->
+        <div id="private" class="section">
+            <h2>✉️ Envoyer un message aux Admins</h2>
+            <form id="privateForm">
+                <input type="text" id="senderName" placeholder="Votre nom" required>
+                <textarea id="privateMsg" placeholder="Votre message" required></textarea>
+                <button type="submit">Envoyer</button>
+            </form>
+            <div id="privateMessage"></div>
         </div>
     </div>
 
     <script>
-        // ========== SONS (Web Audio API) ==========
+        // ========== SONS ==========
         function playSound(type) {
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
-                
                 oscillator.connect(gainNode);
                 gainNode.connect(audioContext.destination);
-                
                 oscillator.type = 'sine';
                 gainNode.gain.value = 0.3;
-                
                 switch(type) {
                     case 'ding':
                         oscillator.frequency.value = 880;
                         oscillator.start();
                         gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.5);
-                        break;
-                    case 'success':
-                        oscillator.frequency.value = 523.25;
-                        oscillator.start();
-                        setTimeout(() => {
-                            oscillator.frequency.value = 659.25;
-                        }, 100);
-                        setTimeout(() => {
-                            oscillator.frequency.value = 783.99;
-                        }, 200);
-                        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.8);
                         break;
                     case 'pop':
                         oscillator.frequency.value = 440;
@@ -290,17 +224,14 @@ le respect ne se demande pas
                         gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.2);
                         break;
                 }
-                
                 setTimeout(() => {
                     oscillator.stop();
                     audioContext.close();
                 }, 800);
-            } catch(e) {
-                console.log("Audio non supporté");
-            }
+            } catch(e) { console.log("Audio non supporté"); }
         }
         
-        // ========== MUSIQUE DE FOND ==========
+        // ========== MUSIQUE ==========
         let backgroundMusic = null;
         let musicPlaying = false;
         
@@ -309,9 +240,7 @@ le respect ne se demande pas
                 backgroundMusic = new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
                 backgroundMusic.loop = true;
                 backgroundMusic.volume = 0.2;
-            } catch(e) {
-                console.log("Musique non disponible");
-            }
+            } catch(e) { console.log("Musique non disponible"); }
         }
         
         function toggleMusic() {
@@ -328,17 +257,12 @@ le respect ne se demande pas
         }
         
         // ========== DONNÉES ==========
-        let admins = JSON.parse(localStorage.getItem('admins') || '[{"username":"joyboy","password":"joyboy123","isMaster":true}]');
         let clans = JSON.parse(localStorage.getItem('clans') || '[]');
         let forum = JSON.parse(localStorage.getItem('forum') || '[]');
-        let privateMsgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
-        let currentAdmin = null;
         
         function saveData() {
-            localStorage.setItem('admins', JSON.stringify(admins));
             localStorage.setItem('clans', JSON.stringify(clans));
             localStorage.setItem('forum', JSON.stringify(forum));
-            localStorage.setItem('privateMsgs', JSON.stringify(privateMsgs));
         }
         
         function escapeHtml(str) {
@@ -351,65 +275,10 @@ le respect ne se demande pas
             });
         }
         
-        // ========== CONNEXION ==========
-        document.getElementById('loginForm')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const username = document.getElementById('loginUsername').value;
-            const password = document.getElementById('loginPassword').value;
-            
-            const admin = admins.find(a => a.username === username && a.password === password);
-            if(admin) {
-                currentAdmin = admin;
-                localStorage.setItem('currentAdmin', JSON.stringify({username: admin.username, isMaster: admin.isMaster}));
-                playSound('success');
-                showMainApp();
-            } else {
-                document.getElementById('loginError').innerText = '❌ Pseudo ou mot de passe incorrect';
-            }
-        });
-        
-        function showMainApp() {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'block';
-            
-            if(currentAdmin) {
-                document.getElementById('currentAdminName').innerText = currentAdmin.username;
-                const adminBtn = document.getElementById('adminBtn');
-                if(adminBtn) adminBtn.style.display = 'inline-block';
-            }
-            
-            updateRanking();
-            displayForum();
-            if(document.getElementById('admin').classList.contains('active')) {
-                updateAdminPanel();
-            }
-        }
-        
-        function logout() {
-            currentAdmin = null;
-            localStorage.removeItem('currentAdmin');
-            document.getElementById('loginScreen').style.display = 'block';
-            document.getElementById('mainApp').style.display = 'none';
-            document.getElementById('loginForm').reset();
-            document.getElementById('loginError').innerText = '';
-        }
-        
-        const savedAdmin = localStorage.getItem('currentAdmin');
-        if(savedAdmin) {
-            const parsed = JSON.parse(savedAdmin);
-            const adminExists = admins.find(a => a.username === parsed.username);
-            if(adminExists) {
-                currentAdmin = adminExists;
-                showMainApp();
-            }
-        }
-        
-        // ========== NAVIGATION ==========
         function showSection(sectionId) {
-            document.querySelectorAll('#mainApp .section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.getElementById(sectionId).classList.add('active');
             if(sectionId === 'ranking') updateRanking();
-            if(sectionId === 'admin' && currentAdmin) updateAdminPanel();
             if(sectionId === 'forum') displayForum();
         }
         
@@ -422,8 +291,7 @@ le respect ne se demande pas
                 leader: document.getElementById('leader').value,
                 description: document.getElementById('description').value,
                 approved: false,
-                score: 0,
-                likes: 0
+                score: 0
             };
             clans.push(newClan);
             saveData();
@@ -472,15 +340,15 @@ le respect ne se demande pas
         // ========== MESSAGE PRIVÉ ==========
         document.getElementById('privateForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
+            let privateMsgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
             const newMsg = {
                 id: Date.now(),
                 from: document.getElementById('senderName').value,
                 message: document.getElementById('privateMsg').value,
-                date: new Date().toLocaleString(),
-                read: false
+                date: new Date().toLocaleString()
             };
             privateMsgs.push(newMsg);
-            saveData();
+            localStorage.setItem('privateMsgs', JSON.stringify(privateMsgs));
             playSound('ding');
             document.getElementById('privateMessage').innerHTML = '<p class="success">✅ Message envoyé aux admins !</p>';
             e.target.reset();
@@ -501,128 +369,13 @@ le respect ne se demande pas
                     <strong>${escapeHtml(clan.name)}</strong>
                     <span>Chef: ${escapeHtml(clan.leader)}</span>
                     <span>⭐ Score: ${clan.score} pts</span>
-                    <span>❤️ ${clan.likes} likes</span>
                 </div>
             `).join('');
         }
-        
-        // ========== PANEL ADMIN ==========
-        function updateAdminPanel() {
-            if(!currentAdmin) return;
-            
-            const adminContainer = document.getElementById('adminList');
-            if(adminContainer && currentAdmin.isMaster) {
-                adminContainer.innerHTML = admins.map(admin => `
-                    <div class="admin-card">
-                        👤 ${escapeHtml(admin.username)} ${admin.isMaster ? '👑 Maître' : ''}
-                        ${!admin.isMaster ? `<button onclick="removeAdmin('${admin.username}')">❌ Supprimer</button>` : ''}
-                    </div>
-                `).join('');
-            } else if(adminContainer) {
-                adminContainer.innerHTML = '<p>Seul Joyboy peut gérer les admins.</p>';
-            }
-            
-            const pending = clans.filter(c => !c.approved);
-            const pendingContainer = document.getElementById('pendingClans');
-            if(pendingContainer) {
-                pendingContainer.innerHTML = pending.map(clan => `
-                    <div class="clan-card">
-                        <strong>${escapeHtml(clan.name)}</strong> - Chef: ${escapeHtml(clan.leader)}<br>
-                        ${escapeHtml(clan.description)}<br>
-                        <button onclick="approveClan(${clan.id})">✅ Approuver</button>
-                        <button onclick="deleteClan(${clan.id})">❌ Refuser</button>
-                    </div>
-                `).join('');
-            }
-            
-            const approved = clans.filter(c => c.approved);
-            const scoreContainer = document.getElementById('scoreInputs');
-            if(scoreContainer) {
-                scoreContainer.innerHTML = approved.map(clan => `
-                    <div class="clan-card">
-                        ${escapeHtml(clan.name)} - Score actuel: ${clan.score} pts
-                        <input type="number" id="score_${clan.id}" placeholder="Nouveau score">
-                        <button onclick="updateScore(${clan.id})">Mettre à jour</button>
-                    </div>
-                `).join('');
-            }
-            
-            const msgContainer = document.getElementById('adminMessages');
-            if(msgContainer) {
-                msgContainer.innerHTML = privateMsgs.map(msg => `
-                    <div class="message">
-                        <strong>✉️ De: ${escapeHtml(msg.from)}</strong> <small>${msg.date}</small><br>
-                        ${escapeHtml(msg.message)}
-                    </div>
-                `).join('');
-            }
-        }
-        
-        function approveClan(id) {
-            const clan = clans.find(c => c.id === id);
-            if(clan) clan.approved = true;
-            saveData();
-            playSound('success');
-            updateAdminPanel();
-            updateRanking();
-        }
-        
-        function deleteClan(id) {
-            clans = clans.filter(c => c.id !== id);
-            saveData();
-            playSound('pop');
-            updateAdminPanel();
-        }
-        
-        function updateScore(id) {
-            const input = document.getElementById(`score_${id}`);
-            const newScore = parseInt(input.value);
-            if(!isNaN(newScore)) {
-                const clan = clans.find(c => c.id === id);
-                if(clan) clan.score = newScore;
-                saveData();
-                playSound('pop');
-                updateAdminPanel();
-                updateRanking();
-                alert('✅ Score mis à jour !');
-            }
-        }
-        
-        function removeAdmin(username) {
-            if(currentAdmin && currentAdmin.isMaster) {
-                admins = admins.filter(a => a.username !== username);
-                saveData();
-                playSound('pop');
-                updateAdminPanel();
-            }
-        }
-        
-        document.getElementById('addAdminForm')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            if(currentAdmin && currentAdmin.isMaster) {
-                const newName = document.getElementById('newAdminName').value;
-                const newPass = document.getElementById('newAdminPass').value;
-                if(!admins.find(a => a.username === newName)) {
-                    admins.push({
-                        username: newName,
-                        password: newPass,
-                        isMaster: false
-                    });
-                    saveData();
-                    playSound('success');
-                    updateAdminPanel();
-                    document.getElementById('addAdminForm').reset();
-                    alert(`✅ Admin "${newName}" ajouté !`);
-                } else {
-                    alert('❌ Cet admin existe déjà !');
-                }
-            } else {
-                alert('❌ Seul Joyboy peut ajouter des admins.');
-            }
-        });
         
         initMusic();
         updateRanking();
     </script>
 </body>
 </html>
+INFO PURGE 24 PRODUCTION by JOYBOY
