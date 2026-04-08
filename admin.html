@@ -87,17 +87,18 @@ Joy boy ....le respect ne se demande pas
             padding: 5px 10px;
             border-radius: 10px;
         }
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+        }
+        .delete-btn:hover { background: #c0392b; }
+        .success { color: #2ecc71; }
         .back-link {
             display: inline-block;
             margin-top: 20px;
             color: white;
             text-decoration: none;
         }
-        .delete-btn {
-            background: #e74c3c;
-            color: white;
-        }
-        .delete-btn:hover { background: #c0392b; }
     </style>
 </head>
 <body>
@@ -117,26 +118,30 @@ Joy boy ....le respect ne se demande pas
                 <p>Bienvenue !</p>
                 <button onclick="logout()">🚪 Déconnexion</button>
                 <a href="index.html"><button>🏠 Voir le site public</button></a>
-                <button onclick="exportData()" style="background:#3498db;">💾 Exporter les données</button>
-                <button onclick="importData()" style="background:#3498db;">📂 Importer les données</button>
+                <button onclick="syncAllData()" style="background:#27ae60;">🔄 SYNCHRONISER AVEC LE PUBLIC</button>
             </header>
 
+            <h2>📋 Données en attente de synchronisation</h2>
+            <div id="pendingData"></div>
+
             <h2>📋 Liste des clans</h2>
-            <p style="margin-bottom: 10px;">⚠️ Cliquez sur "Supprimer" pour retirer un clan du classement</p>
             <div id="clansList"></div>
 
             <h2>⭐ Ajouter des points à un clan</h2>
-            <p style="margin-bottom: 10px;">Les points s'ajoutent automatiquement aux 3 classements (Semaine, Mois, Année)</p>
             <div id="scoreInputs"></div>
 
-            <h2>📬 Messages reçus des visiteurs</h2>
+            <h2>📬 Messages reçus</h2>
             <div id="adminMessages"></div>
         </div>
     </div>
 
     <script>
-        const ADMIN_PIN = "1234";
+        // Code PIN modifié pour 2007
+        const ADMIN_PIN = "2007";
         let currentData = { clans: [], forum: [], private_msgs: [] };
+        let pendingClans = [];
+        let pendingForum = [];
+        let pendingPrivate = [];
         
         function checkPin() {
             const enteredPin = document.getElementById('pinCode').value;
@@ -144,7 +149,7 @@ Joy boy ....le respect ne se demande pas
                 localStorage.setItem('adminLoggedIn', 'true');
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('adminPanel').style.display = 'block';
-                loadData();
+                loadAllData();
             } else {
                 document.getElementById('loginError').innerText = '❌ Code incorrect';
                 document.getElementById('pinCode').value = '';
@@ -154,7 +159,7 @@ Joy boy ....le respect ne se demande pas
         if(localStorage.getItem('adminLoggedIn') === 'true') {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('adminPanel').style.display = 'block';
-            loadData();
+            loadAllData();
         }
         
         function logout() {
@@ -163,61 +168,88 @@ Joy boy ....le respect ne se demande pas
             document.getElementById('adminPanel').style.display = 'none';
         }
         
-        function loadData() {
+        function loadAllData() {
             currentData.clans = JSON.parse(localStorage.getItem('clans') || '[]');
             currentData.forum = JSON.parse(localStorage.getItem('forum') || '[]');
             currentData.private_msgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
+            
+            pendingClans = JSON.parse(localStorage.getItem('pending_clans') || '[]');
+            pendingForum = JSON.parse(localStorage.getItem('pending_forum') || '[]');
+            pendingPrivate = JSON.parse(localStorage.getItem('pending_private') || '[]');
+            
             displayAdminPanel();
         }
         
-        function saveData() {
-            localStorage.setItem('clans', JSON.stringify(currentData.clans));
-            localStorage.setItem('forum', JSON.stringify(currentData.forum));
-            localStorage.setItem('privateMsgs', JSON.stringify(currentData.private_msgs));
-        }
-        
         function displayAdminPanel() {
-            // Liste des clans avec bouton supprimer
+            const pendingContainer = document.getElementById('pendingData');
+            let pendingHtml = '';
+            
+            if(pendingClans.length > 0) {
+                pendingHtml += `<div class="clan-card" style="background:#f39c12; color:#0a2b4e;">
+                    <strong>📝 Nouveaux clans en attente :</strong><br>
+                    ${pendingClans.map(c => `🏰 ${c.name} (Chef: ${c.leader})`).join('<br>')}
+                    <button onclick="acceptPendingClans()" style="background:#27ae60; margin-top:10px;">✅ Accepter ces clans</button>
+                </div>`;
+            }
+            
+            if(pendingForum.length > 0) {
+                pendingHtml += `<div class="clan-card" style="background:#3498db;">
+                    <strong>💬 Nouveaux messages forum :</strong><br>
+                    ${pendingForum.map(m => `${m.author}: ${m.message.substring(0,50)}...`).join('<br>')}
+                    <button onclick="acceptPendingForum()" style="background:#27ae60; margin-top:10px;">✅ Accepter ces messages</button>
+                </div>`;
+            }
+            
+            if(pendingPrivate.length > 0) {
+                pendingHtml += `<div class="clan-card" style="background:#e74c3c;">
+                    <strong>✉️ Nouveaux messages privés :</strong><br>
+                    ${pendingPrivate.map(m => `De: ${m.sender}`).join('<br>')}
+                    <button onclick="acceptPendingPrivate()" style="background:#27ae60; margin-top:10px;">✅ Accepter ces messages</button>
+                </div>`;
+            }
+            
+            if(pendingHtml === '') {
+                pendingHtml = '<p>✅ Aucune donnée en attente.</p>';
+            }
+            pendingContainer.innerHTML = pendingHtml;
+            
             const clansContainer = document.getElementById('clansList');
             if(currentData.clans.length === 0) {
-                clansContainer.innerHTML = '<p>Aucun clan inscrit pour le moment.</p>';
+                clansContainer.innerHTML = '<p>Aucun clan.</p>';
             } else {
                 clansContainer.innerHTML = currentData.clans.map(clan => `
                     <div class="clan-card">
                         <strong>🏰 ${escapeHtml(clan.name)}</strong> - Chef: ${escapeHtml(clan.leader)}<br>
                         📝 ${escapeHtml(clan.description)}<br>
                         📅 Créé le: ${new Date(clan.created_at).toLocaleDateString()}<br>
-                        <button onclick="deleteClan(${clan.id})" class="delete-btn">🗑️ Supprimer ce clan</button>
+                        <button onclick="deleteClan(${clan.id})" class="delete-btn">🗑️ Supprimer</button>
                     </div>
                 `).join('');
             }
             
-            // Ajout de points
             const scoreContainer = document.getElementById('scoreInputs');
             if(currentData.clans.length === 0) {
-                scoreContainer.innerHTML = '<p>Aucun clan pour ajouter des points.</p>';
+                scoreContainer.innerHTML = '<p>Aucun clan.</p>';
             } else {
                 scoreContainer.innerHTML = currentData.clans.map(clan => `
                     <div class="clan-card">
-                        <strong>🏰 ${escapeHtml(clan.name)}</strong> (Chef: ${escapeHtml(clan.leader)})
+                        <strong>🏰 ${escapeHtml(clan.name)}</strong>
                         <div class="current-scores">
                             <span>📅 Semaine: ${clan.score_week || 0} pts</span>
                             <span>📆 Mois: ${clan.score_month || 0} pts</span>
                             <span>🗓️ Année: ${clan.score_year || 0} pts</span>
                         </div>
                         <div class="add-points">
-                            <label>➕ Ajouter des points :</label><br>
-                            <input type="number" id="points_${clan.id}" placeholder="Nombre de points" style="width:150px;">
-                            <button onclick="addPoints(${clan.id})">🎯 Ajouter aux 3 classements</button>
+                            <input type="number" id="points_${clan.id}" placeholder="Points" style="width:150px;">
+                            <button onclick="addPoints(${clan.id})">🎯 Ajouter</button>
                         </div>
                     </div>
                 `).join('');
             }
             
-            // Messages privés
             const msgContainer = document.getElementById('adminMessages');
             if(currentData.private_msgs.length === 0) {
-                msgContainer.innerHTML = '<p>📭 Aucun message reçu.</p>';
+                msgContainer.innerHTML = '<p>Aucun message.</p>';
             } else {
                 msgContainer.innerHTML = currentData.private_msgs.map(msg => `
                     <div class="message">
@@ -228,13 +260,65 @@ Joy boy ....le respect ne se demande pas
             }
         }
         
+        function acceptPendingClans() {
+            currentData.clans = [...pendingClans, ...currentData.clans];
+            pendingClans = [];
+            localStorage.setItem('pending_clans', JSON.stringify(pendingClans));
+            saveCurrentData();
+            displayAdminPanel();
+            alert('✅ Clans ajoutés !');
+        }
+        
+        function acceptPendingForum() {
+            currentData.forum = [...pendingForum, ...currentData.forum];
+            pendingForum = [];
+            localStorage.setItem('pending_forum', JSON.stringify(pendingForum));
+            saveCurrentData();
+            displayAdminPanel();
+            alert('✅ Messages ajoutés !');
+        }
+        
+        function acceptPendingPrivate() {
+            currentData.private_msgs = [...pendingPrivate, ...currentData.private_msgs];
+            pendingPrivate = [];
+            localStorage.setItem('pending_private', JSON.stringify(pendingPrivate));
+            saveCurrentData();
+            displayAdminPanel();
+            alert('✅ Messages privés ajoutés !');
+        }
+        
+        function saveCurrentData() {
+            localStorage.setItem('clans', JSON.stringify(currentData.clans));
+            localStorage.setItem('forum', JSON.stringify(currentData.forum));
+            localStorage.setItem('privateMsgs', JSON.stringify(currentData.private_msgs));
+        }
+        
+        function syncAllData() {
+            const fullData = {
+                clans: currentData.clans,
+                forum: currentData.forum,
+                private_msgs: currentData.private_msgs
+            };
+            
+            const dataStr = JSON.stringify(fullData, null, 2);
+            const blob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert(`📦 Fichier data.json téléchargé !\n\nÉTAPES À SUIVRE :\n1. Allez sur https://github.com/ablaye2020/clan-war\n2. Ouvrez le fichier data.json\n3. Cliquez sur le crayon (modifier)\n4. Copiez-collez le contenu du fichier téléchargé\n5. Cliquez sur "Commit changes"\n\n✅ Les visiteurs verront les nouvelles données !`);
+        }
+        
         function deleteClan(id) {
             const clan = currentData.clans.find(c => c.id === id);
-            if(confirm(`Supprimer définitivement le clan "${clan.name}" ?`)) {
+            if(confirm(`Supprimer "${clan.name}" ?`)) {
                 currentData.clans = currentData.clans.filter(c => c.id !== id);
-                saveData();
+                saveCurrentData();
                 displayAdminPanel();
-                alert(`✅ Le clan "${clan.name}" a été supprimé du classement.`);
+                alert(`✅ "${clan.name}" supprimé.`);
             }
         }
         
@@ -247,49 +331,14 @@ Joy boy ....le respect ne se demande pas
                     clan.score_week = (clan.score_week || 0) + points;
                     clan.score_month = (clan.score_month || 0) + points;
                     clan.score_year = (clan.score_year || 0) + points;
-                    saveData();
-                    alert(`✅ ${points} points ajoutés à ${clan.name} dans les 3 classements !`);
+                    saveCurrentData();
+                    alert(`✅ ${points} points ajoutés à ${clan.name} !`);
                     displayAdminPanel();
                 }
                 input.value = '';
             } else {
-                alert('❌ Entrez un nombre valide (supérieur à 0)');
+                alert('❌ Entrez un nombre valide');
             }
-        }
-        
-        function exportData() {
-            const dataStr = JSON.stringify(currentData, null, 2);
-            const blob = new Blob([dataStr], {type: "application/json"});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'clanwars_backup.json';
-            a.click();
-            URL.revokeObjectURL(url);
-            alert('✅ Données exportées !');
-        }
-        
-        function importData() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'application/json';
-            input.onchange = e => {
-                const file = e.target.files[0];
-                const reader = new FileReader();
-                reader.onload = event => {
-                    try {
-                        const imported = JSON.parse(event.target.result);
-                        currentData = imported;
-                        saveData();
-                        displayAdminPanel();
-                        alert('✅ Données importées avec succès !');
-                    } catch(err) {
-                        alert('❌ Fichier invalide');
-                    }
-                };
-                reader.readAsText(file);
-            };
-            input.click();
         }
         
         function escapeHtml(str) {
@@ -304,4 +353,3 @@ Joy boy ....le respect ne se demande pas
     </script>
 </body>
 </html>
-night ...dianny...shiro..𝚂𝙷𝙰𝙳𝙾𝚆..william...Info purge 24
