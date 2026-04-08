@@ -163,7 +163,7 @@ le respect ne se demande pas
                 <button onclick="showSection('ranking')">🏅 Classement</button>
                 <button onclick="showSection('register')">📝 Inscription Clan</button>
                 <button onclick="showSection('forum')">💬 Forum Public</button>
-                <button onclick="showSection('private')">✉️ Message aux Admins</button>
+                <button onclick="showSection('private')">✉️ Message à Joyboy</button>
             </nav>
         </header>
 
@@ -179,11 +179,12 @@ le respect ne se demande pas
 
         <div id="register" class="section">
             <h2>📝 Inscription de votre Clan</h2>
+            <p style="margin-bottom: 15px;">✅ Les clans sont directement visibles dans le classement (pas d'approbation)</p>
             <form id="registerForm">
                 <input type="text" id="clanName" placeholder="Nom du clan" required>
                 <input type="text" id="leader" placeholder="Nom du chef" required>
                 <textarea id="description" placeholder="Description du clan"></textarea>
-                <button type="submit">Soumettre pour approbation</button>
+                <button type="submit">Créer mon clan</button>
             </form>
             <div id="registerMessage"></div>
         </div>
@@ -199,7 +200,7 @@ le respect ne se demande pas
         </div>
 
         <div id="private" class="section">
-            <h2>✉️ Envoyer un message aux Admins</h2>
+            <h2>✉️ Envoyer un message à Joyboy</h2>
             <form id="privateForm">
                 <input type="text" id="senderName" placeholder="Votre nom" required>
                 <textarea id="privateMsg" placeholder="Votre message" required></textarea>
@@ -210,32 +211,9 @@ le respect ne se demande pas
     </div>
 
     <script>
-        // Configuration GitHub
-        const GITHUB_USERNAME = "ablaye2020";
-const REPO_NAME = "INFO PURGE 24";
-        
         let currentRankingPeriod = 'week';
         let backgroundMusic = null;
         let musicPlaying = false;
-        
-        async function loadData() {
-            try {
-                const url = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/data.json`;
-                const response = await fetch(url + "?t=" + Date.now());
-                const data = await response.json();
-                return data;
-            } catch(e) {
-                console.error("Erreur chargement:", e);
-                return { clans: [], forum: [], private_msgs: [] };
-            }
-        }
-        
-        async function saveData(data) {
-            // GitHub ne permet pas d'écrire directement
-            // On va stocker dans localStorage et l'admin pourra exporter
-            localStorage.setItem('backupData', JSON.stringify(data));
-            return true;
-        }
         
         function playSound(type) {
             try {
@@ -293,27 +271,28 @@ const REPO_NAME = "INFO PURGE 24";
             updateRanking();
         }
         
-        async function updateRanking() {
-            const data = await loadData();
-            let approvedClans = data.clans.filter(c => c.approved === true);
+        function updateRanking() {
+            let clans = JSON.parse(localStorage.getItem('clans') || '[]');
+            // Tous les clans sont directement visibles (pas d'approbation)
+            let activeClans = clans;
             
             if(currentRankingPeriod === 'week') {
-                approvedClans.sort((a,b) => (b.score_week || 0) - (a.score_week || 0));
+                activeClans.sort((a,b) => (b.score_week || 0) - (a.score_week || 0));
             } else if(currentRankingPeriod === 'month') {
-                approvedClans.sort((a,b) => (b.score_month || 0) - (a.score_month || 0));
+                activeClans.sort((a,b) => (b.score_month || 0) - (a.score_month || 0));
             } else {
-                approvedClans.sort((a,b) => (b.score_year || 0) - (a.score_year || 0));
+                activeClans.sort((a,b) => (b.score_year || 0) - (a.score_year || 0));
             }
             
             const container = document.getElementById('rankingList');
-            if(approvedClans.length === 0) {
-                container.innerHTML = '<p>Aucun clan approuvé pour le moment.</p>';
+            if(activeClans.length === 0) {
+                container.innerHTML = '<p>Aucun clan pour le moment. Soyez le premier à vous inscrire !</p>';
                 return;
             }
             
             let periodLabel = currentRankingPeriod === 'week' ? 'pts (semaine)' : (currentRankingPeriod === 'month' ? 'pts (mois)' : 'pts (année)');
             
-            container.innerHTML = approvedClans.map((clan, index) => {
+            container.innerHTML = activeClans.map((clan, index) => {
                 let score = currentRankingPeriod === 'week' ? (clan.score_week || 0) : 
                            (currentRankingPeriod === 'month' ? (clan.score_month || 0) : (clan.score_year || 0));
                 return `
@@ -327,14 +306,14 @@ const REPO_NAME = "INFO PURGE 24";
             }).join('');
         }
         
-        async function loadForum() {
-            const data = await loadData();
+        function loadForum() {
+            let forum = JSON.parse(localStorage.getItem('forum') || '[]');
             const container = document.getElementById('forumMessages');
-            if(data.forum.length === 0) {
+            if(forum.length === 0) {
                 container.innerHTML = '<p>Soyez le premier à poster un message !</p>';
                 return;
             }
-            container.innerHTML = data.forum.map(msg => `
+            container.innerHTML = forum.map(msg => `
                 <div class="message">
                     <strong>${escapeHtml(msg.author)}</strong> <small>${msg.date}</small><br>
                     ${escapeHtml(msg.message)}<br>
@@ -343,41 +322,44 @@ const REPO_NAME = "INFO PURGE 24";
             `).join('');
         }
         
-        async function likeMessage(id) {
-            let data = await loadData();
-            const msg = data.forum.find(m => m.id == id);
+        function likeMessage(id) {
+            let forum = JSON.parse(localStorage.getItem('forum') || '[]');
+            const msg = forum.find(m => m.id == id);
             if(msg) {
                 msg.likes = (msg.likes || 0) + 1;
-                await saveData(data);
+                localStorage.setItem('forum', JSON.stringify(forum));
                 loadForum();
                 playSound('ding');
             }
         }
         
-        document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
+        document.getElementById('registerForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
-            let data = await loadData();
+            let clans = JSON.parse(localStorage.getItem('clans') || '[]');
             const newClan = {
                 id: Date.now(),
                 name: document.getElementById('clanName').value,
                 leader: document.getElementById('leader').value,
                 description: document.getElementById('description').value,
-                approved: false,
                 score_week: 0,
                 score_month: 0,
                 score_year: 0,
                 created_at: new Date().toISOString()
             };
-            data.clans.push(newClan);
-            await saveData(data);
+            clans.push(newClan);
+            localStorage.setItem('clans', JSON.stringify(clans));
             playSound('ding');
-            document.getElementById('registerMessage').innerHTML = '<p class="success">✅ Demande envoyée ! En attente d\'approbation.</p>';
+            document.getElementById('registerMessage').innerHTML = '<p class="success">✅ Votre clan a été créé et apparaît dans le classement !</p>';
+            updateRanking();
             e.target.reset();
+            setTimeout(() => {
+                document.getElementById('registerMessage').innerHTML = '';
+            }, 3000);
         });
         
-        document.getElementById('forumForm')?.addEventListener('submit', async (e) => {
+        document.getElementById('forumForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
-            let data = await loadData();
+            let forum = JSON.parse(localStorage.getItem('forum') || '[]');
             const newMsg = {
                 id: Date.now(),
                 author: document.getElementById('authorName').value,
@@ -385,27 +367,30 @@ const REPO_NAME = "INFO PURGE 24";
                 likes: 0,
                 date: new Date().toLocaleString()
             };
-            data.forum.unshift(newMsg);
-            await saveData(data);
+            forum.unshift(newMsg);
+            localStorage.setItem('forum', JSON.stringify(forum));
             playSound('ding');
             loadForum();
             e.target.reset();
         });
         
-        document.getElementById('privateForm')?.addEventListener('submit', async (e) => {
+        document.getElementById('privateForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
-            let data = await loadData();
+            let privateMsgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
             const newMsg = {
                 id: Date.now(),
                 sender: document.getElementById('senderName').value,
                 message: document.getElementById('privateMsg').value,
                 date: new Date().toLocaleString()
             };
-            data.private_msgs.push(newMsg);
-            await saveData(data);
+            privateMsgs.push(newMsg);
+            localStorage.setItem('privateMsgs', JSON.stringify(privateMsgs));
             playSound('ding');
-            document.getElementById('privateMessage').innerHTML = '<p class="success">✅ Message envoyé aux admins !</p>';
+            document.getElementById('privateMessage').innerHTML = '<p class="success">✅ Message envoyé à Joyboy !</p>';
             e.target.reset();
+            setTimeout(() => {
+                document.getElementById('privateMessage').innerHTML = '';
+            }, 3000);
         });
         
         function escapeHtml(str) {
@@ -421,6 +406,8 @@ const REPO_NAME = "INFO PURGE 24";
         initMusic();
         updateRanking();
         loadForum();
+        
+        // Rafraîchir toutes les 5 secondes
         setInterval(() => { updateRanking(); loadForum(); }, 5000);
     </script>
 </body>
