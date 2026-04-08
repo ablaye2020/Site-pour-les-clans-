@@ -1,4 +1,4 @@
-
+Joy boy ....le respect ne se demande pas
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -66,6 +66,26 @@
             color: white;
             text-decoration: none;
         }
+        .add-points {
+            background: rgba(46,204,113,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        .current-scores {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .current-scores span {
+            background: rgba(0,0,0,0.3);
+            padding: 5px 10px;
+            border-radius: 10px;
+        }
+        .week-score { color: #2ecc71; }
+        .month-score { color: #3498db; }
+        .year-score { color: #e74c3c; }
     </style>
 </head>
 <body>
@@ -101,7 +121,8 @@
             <h2>⏳ Clans en attente</h2>
             <div id="pendingClans"></div>
 
-            <h2>⭐ Entrer les notes des clans</h2>
+            <h2>⭐ Ajouter des points à un clan</h2>
+            <p style="margin-bottom: 10px;">⚠️ Les points s'ajoutent AUTOMATIQUEMENT aux 3 classements (semaine, mois, année)</p>
             <div id="scoreInputs"></div>
 
             <h2>📬 Messages reçus</h2>
@@ -151,7 +172,6 @@
             });
         }
 
-        // Connexion
         document.getElementById('loginForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
             const username = document.getElementById('loginUsername').value;
@@ -178,7 +198,6 @@
         function updateAdminPanel() {
             if(!currentAdmin) return;
 
-            // Liste des admins
             const adminContainer = document.getElementById('adminList');
             if(adminContainer && currentAdmin.isMaster) {
                 adminContainer.innerHTML = admins.map(admin => `
@@ -191,7 +210,6 @@
                 adminContainer.innerHTML = '<p>Seul Joyboy peut gérer les admins.</p>';
             }
 
-            // Clans en attente
             const pending = clans.filter(c => !c.approved);
             document.getElementById('pendingClans').innerHTML = pending.map(clan => `
                 <div class="clan-card">
@@ -202,23 +220,35 @@
                 </div>
             `).join('');
 
-            // Entrer les notes
+            // Interface pour ajouter des points (UN SEUL CHAMP)
             const approved = clans.filter(c => c.approved);
             document.getElementById('scoreInputs').innerHTML = approved.map(clan => `
                 <div class="clan-card">
-                    ${escapeHtml(clan.name)} - Score actuel: ${clan.score} pts
-                    <input type="number" id="score_${clan.id}" placeholder="Nouveau score">
-                    <button onclick="updateScore(${clan.id})">Mettre à jour</button>
+                    <strong>🏰 ${escapeHtml(clan.name)}</strong> (Chef: ${escapeHtml(clan.leader)})
+                    
+                    <div class="current-scores">
+                        <span class="week-score">📅 Semaine: ${clan.scoreWeek || 0} pts</span>
+                        <span class="month-score">📆 Mois: ${clan.scoreMonth || 0} pts</span>
+                        <span class="year-score">🗓️ Année: ${clan.scoreYear || 0} pts</span>
+                    </div>
+                    
+                    <div class="add-points">
+                        <label>➕ Ajouter des points (sera ajouté aux 3 classements) :</label><br>
+                        <input type="number" id="points_${clan.id}" placeholder="Nombre de points à ajouter" style="width:200px;">
+                        <button onclick="addPoints(${clan.id})">🎯 Ajouter aux 3 classements</button>
+                    </div>
                 </div>
             `).join('');
 
-            // Messages
-            document.getElementById('adminMessages').innerHTML = privateMsgs.map(msg => `
-                <div class="message">
-                    <strong>✉️ De: ${escapeHtml(msg.from)}</strong> <small>${msg.date}</small><br>
-                    ${escapeHtml(msg.message)}
-                </div>
-            `).join('');
+            const msgContainer = document.getElementById('adminMessages');
+            if(msgContainer) {
+                msgContainer.innerHTML = privateMsgs.map(msg => `
+                    <div class="message">
+                        <strong>✉️ De: ${escapeHtml(msg.from)}</strong> <small>${msg.date}</small><br>
+                        ${escapeHtml(msg.message)}
+                    </div>
+                `).join('');
+            }
         }
 
         function approveClan(id) {
@@ -234,15 +264,27 @@
             updateAdminPanel();
         }
 
-        function updateScore(id) {
-            const input = document.getElementById(`score_${id}`);
-            const newScore = parseInt(input.value);
-            if(!isNaN(newScore)) {
+        // FONCTION PRINCIPALE : Ajoute des points aux 3 classements en même temps
+        function addPoints(id) {
+            const input = document.getElementById(`points_${id}`);
+            const points = parseInt(input.value);
+            
+            if(!isNaN(points) && points > 0) {
                 const clan = clans.find(c => c.id === id);
-                if(clan) clan.score = newScore;
-                saveData();
-                updateAdminPanel();
-                alert('✅ Score mis à jour !');
+                if(clan) {
+                    // Ajout aux 3 classements automatiquement
+                    clan.scoreWeek = (clan.scoreWeek || 0) + points;
+                    clan.scoreMonth = (clan.scoreMonth || 0) + points;
+                    clan.scoreYear = (clan.scoreYear || 0) + points;
+                    
+                    saveData();
+                    updateAdminPanel();
+                    playSound('success');
+                    alert(`✅ ${points} points ajoutés à ${clan.name} dans les 3 classements !`);
+                }
+                input.value = '';
+            } else {
+                alert('❌ Entrez un nombre valide (supérieur à 0)');
             }
         }
 
