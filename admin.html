@@ -9,7 +9,10 @@ Joy boy ....le respect ne se demande pas
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #0a2b4e, #1a4a7a);
+            background: linear-gradient(rgba(10, 43, 78, 0.85), rgba(26, 74, 122, 0.85)), url('https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
             color: #ffffff;
             padding: 20px;
         }
@@ -53,10 +56,7 @@ Joy boy ....le respect ne se demande pas
             border-radius: 20px;
             text-align: center;
         }
-        .error {
-            color: #ffaa44;
-            margin-top: 15px;
-        }
+        .error { color: #ffaa44; }
         .pin-input {
             font-size: 32px;
             text-align: center;
@@ -93,11 +93,13 @@ Joy boy ....le respect ne se demande pas
             color: white;
             text-decoration: none;
         }
+        .export-btn {
+            background: #3498db;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Écran de connexion avec code PIN -->
         <div id="loginScreen" class="login-box">
             <h2>🔐 Accès Admin</h2>
             <p>Entrez le code à 4 chiffres</p>
@@ -107,19 +109,20 @@ Joy boy ....le respect ne se demande pas
             <a href="index.html" class="back-link">← Retour au site public</a>
         </div>
 
-        <!-- Panel Admin (caché au début) -->
         <div id="adminPanel" style="display:none;">
             <header>
                 <h1>👑 Panel Administration</h1>
                 <p>Bienvenue Admin !</p>
                 <button onclick="logout()">🚪 Déconnexion</button>
                 <a href="index.html"><button>🏠 Voir le site public</button></a>
+                <button onclick="exportData()" class="export-btn">💾 Exporter les données</button>
+                <button onclick="importData()" class="export-btn">📂 Importer les données</button>
             </header>
 
             <h2>⏳ Clans en attente</h2>
             <div id="pendingClans"></div>
 
-            <h2>⭐ Ajouter des points à un clan</h2>
+            <h2>⭐ Ajouter des points</h2>
             <div id="scoreInputs"></div>
 
             <h2>📬 Messages reçus</h2>
@@ -128,87 +131,98 @@ Joy boy ....le respect ne se demande pas
     </div>
 
     <script>
-        // 🔑 LE CODE À 4 CHIFFRES - VOUS POUVEZ LE CHANGER ICI
-        const ADMIN_PIN = "2007";
+        const ADMIN_PIN = "1234";
+        let currentData = { clans: [], forum: [], private_msgs: [] };
         
         function checkPin() {
             const enteredPin = document.getElementById('pinCode').value;
-            
             if(enteredPin === ADMIN_PIN) {
                 localStorage.setItem('adminLoggedIn', 'true');
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('adminPanel').style.display = 'block';
-                loadAdminData();
+                loadData();
             } else {
                 document.getElementById('loginError').innerText = '❌ Code incorrect';
                 document.getElementById('pinCode').value = '';
             }
         }
         
-        // Vérifier si déjà connecté
         if(localStorage.getItem('adminLoggedIn') === 'true') {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('adminPanel').style.display = 'block';
-            loadAdminData();
+            loadData();
         }
         
         function logout() {
             localStorage.removeItem('adminLoggedIn');
             document.getElementById('loginScreen').style.display = 'block';
             document.getElementById('adminPanel').style.display = 'none';
-            document.getElementById('pinCode').value = '';
         }
         
-        function loadAdminData() {
-            // Récupérer les données
-            let clans = JSON.parse(localStorage.getItem('clans') || '[]');
-            let privateMsgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
-            
+        async function loadData() {
+            // Charger depuis localStorage
+            const saved = localStorage.getItem('clanwars_data');
+            if(saved) {
+                currentData = JSON.parse(saved);
+            } else {
+                currentData = { clans: [], forum: [], private_msgs: [] };
+            }
+            displayAdminPanel();
+        }
+        
+        function saveData() {
+            localStorage.setItem('clanwars_data', JSON.stringify(currentData));
+            // Sauvegarder aussi dans les autres clés pour compatibilité
+            localStorage.setItem('clans', JSON.stringify(currentData.clans));
+            localStorage.setItem('forum', JSON.stringify(currentData.forum));
+            localStorage.setItem('privateMsgs', JSON.stringify(currentData.private_msgs));
+        }
+        
+        function displayAdminPanel() {
             // Clans en attente
-            const pending = clans.filter(c => !c.approved);
+            const pending = currentData.clans.filter(c => !c.approved);
             const pendingContainer = document.getElementById('pendingClans');
             if(pending.length === 0) {
-                pendingContainer.innerHTML = '<p>Aucun clan en attente.</p>';
+                pendingContainer.innerHTML = '<p>✅ Aucun clan en attente.</p>';
             } else {
                 pendingContainer.innerHTML = pending.map(clan => `
                     <div class="clan-card">
-                        <strong>${escapeHtml(clan.name)}</strong> - Chef: ${escapeHtml(clan.leader)}<br>
+                        <strong>🏰 ${escapeHtml(clan.name)}</strong> - Chef: ${escapeHtml(clan.leader)}<br>
                         ${escapeHtml(clan.description)}<br>
-                        <button onclick="approveClan(${clan.id})">✅ Approuver</button>
-                        <button onclick="deleteClan(${clan.id})">❌ Refuser</button>
+                        <button onclick="approveClan(${clan.id})" style="background:#2ecc71;">✅ Approuver</button>
+                        <button onclick="deleteClan(${clan.id})" style="background:#e74c3c;">❌ Refuser</button>
                     </div>
                 `).join('');
             }
             
             // Ajout de points
-            const approved = clans.filter(c => c.approved);
+            const approved = currentData.clans.filter(c => c.approved);
             const scoreContainer = document.getElementById('scoreInputs');
             if(approved.length === 0) {
-                scoreContainer.innerHTML = '<p>Aucun clan approuvé.</p>';
+                scoreContainer.innerHTML = '<p>📌 Aucun clan approuvé.</p>';
             } else {
                 scoreContainer.innerHTML = approved.map(clan => `
                     <div class="clan-card">
-                        <strong>🏰 ${escapeHtml(clan.name)}</strong> (Chef: ${escapeHtml(clan.leader)})
+                        <strong>🏰 ${escapeHtml(clan.name)}</strong>
                         <div class="current-scores">
                             <span>📅 Semaine: ${clan.score_week || 0} pts</span>
                             <span>📆 Mois: ${clan.score_month || 0} pts</span>
                             <span>🗓️ Année: ${clan.score_year || 0} pts</span>
                         </div>
                         <div class="add-points">
-                            <label>➕ Ajouter des points (sera ajouté aux 3 classements) :</label><br>
-                            <input type="number" id="points_${clan.id}" placeholder="Nombre de points" style="width:200px;">
-                            <button onclick="addPoints(${clan.id})">🎯 Ajouter</button>
+                            <input type="number" id="points_${clan.id}" placeholder="Points à ajouter" style="width:150px;">
+                            <button onclick="addPoints(${clan.id})">🎯 Ajouter aux 3 classements</button>
                         </div>
                     </div>
                 `).join('');
             }
             
-            // Messages privés
+            // Messages
             const msgContainer = document.getElementById('adminMessages');
-            if(privateMsgs.length === 0) {
-                msgContainer.innerHTML = '<p>Aucun message reçu.</p>';
+            if(currentData.private_msgs.length === 0) {
+                msgContainer.innerHTML = '<p>📭 Aucun message.</p>';
             } else {
-                msgContainer.innerHTML = privateMsgs.map(msg => `
+                msgContainer.innerHTML = currentData.private_msgs.map(msg => `
                     <div class="message">
                         <strong>✉️ De: ${escapeHtml(msg.sender)}</strong> <small>${msg.date}</small><br>
                         ${escapeHtml(msg.message)}
@@ -218,43 +232,75 @@ Joy boy ....le respect ne se demande pas
         }
         
         function approveClan(id) {
-            let clans = JSON.parse(localStorage.getItem('clans') || '[]');
-            const clan = clans.find(c => c.id === id);
+            const clan = currentData.clans.find(c => c.id === id);
             if(clan) {
                 clan.approved = true;
-                localStorage.setItem('clans', JSON.stringify(clans));
-                loadAdminData();
-                // Rafraîchir le classement sur la page publique
-                if(window.opener) window.opener.location.reload();
+                saveData();
+                displayAdminPanel();
+                alert(`✅ ${clan.name} approuvé !`);
             }
         }
         
         function deleteClan(id) {
-            let clans = JSON.parse(localStorage.getItem('clans') || '[]');
-            clans = clans.filter(c => c.id !== id);
-            localStorage.setItem('clans', JSON.stringify(clans));
-            loadAdminData();
+            const clan = currentData.clans.find(c => c.id === id);
+            currentData.clans = currentData.clans.filter(c => c.id !== id);
+            saveData();
+            displayAdminPanel();
+            if(clan) alert(`❌ ${clan.name} refusé.`);
         }
         
         function addPoints(id) {
             const input = document.getElementById(`points_${id}`);
             const points = parseInt(input.value);
-            
             if(!isNaN(points) && points > 0) {
-                let clans = JSON.parse(localStorage.getItem('clans') || '[]');
-                const clan = clans.find(c => c.id === id);
+                const clan = currentData.clans.find(c => c.id === id);
                 if(clan) {
                     clan.score_week = (clan.score_week || 0) + points;
                     clan.score_month = (clan.score_month || 0) + points;
                     clan.score_year = (clan.score_year || 0) + points;
-                    localStorage.setItem('clans', JSON.stringify(clans));
+                    saveData();
                     alert(`✅ ${points} points ajoutés à ${clan.name} !`);
-                    loadAdminData();
+                    displayAdminPanel();
                 }
                 input.value = '';
             } else {
-                alert('❌ Entrez un nombre valide (supérieur à 0)');
+                alert('❌ Entrez un nombre valide');
             }
+        }
+        
+        function exportData() {
+            const dataStr = JSON.stringify(currentData, null, 2);
+            const blob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'clanwars_backup.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('✅ Données exportées !');
+        }
+        
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        currentData = imported;
+                        saveData();
+                        displayAdminPanel();
+                        alert('✅ Données importées avec succès !');
+                    } catch(err) {
+                        alert('❌ Fichier invalide');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
         }
         
         function escapeHtml(str) {
