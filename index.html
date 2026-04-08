@@ -10,7 +10,10 @@ le respect ne se demande pas
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #0a2b4e, #1a4a7a);
+            background: linear-gradient(rgba(10, 43, 78, 0.85), rgba(26, 74, 122, 0.85)), url('https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
             color: #ffffff;
             padding: 20px;
         }
@@ -22,7 +25,6 @@ le respect ne se demande pas
             backdrop-filter: blur(10px);
             border-radius: 20px;
             margin-bottom: 30px;
-            border: 1px solid rgba(255,255,255,0.2);
         }
         h1 { color: #ffffff; margin-bottom: 10px; font-size: 2.5em; }
         .joyboy { color: #7cb8ff; font-style: italic; }
@@ -33,7 +35,7 @@ le respect ne se demande pas
             flex-wrap: wrap;
             margin-top: 20px;
         }
-        button, .btn {
+        button {
             padding: 12px 24px;
             background: #ffffff;
             border: none;
@@ -43,7 +45,7 @@ le respect ne se demande pas
             font-weight: bold;
             transition: all 0.2s;
         }
-        button:hover, .btn:hover {
+        button:hover {
             transform: scale(1.05);
             background: #7cb8ff;
             color: white;
@@ -55,7 +57,6 @@ le respect ne se demande pas
             padding: 20px;
             margin-bottom: 30px;
             display: none;
-            border: 1px solid rgba(255,255,255,0.2);
         }
         .section.active { display: block; }
         .ranking-tabs {
@@ -69,7 +70,6 @@ le respect ne se demande pas
             padding: 10px 20px;
             border-radius: 25px;
             cursor: pointer;
-            transition: all 0.2s;
         }
         .ranking-tab.active {
             background: #7cb8ff;
@@ -84,7 +84,6 @@ le respect ne se demande pas
             margin: 10px 0;
             border-radius: 10px;
             flex-wrap: wrap;
-            gap: 10px;
         }
         .ranking-number {
             font-size: 24px;
@@ -95,13 +94,6 @@ le respect ne se demande pas
         .ranking-name { flex: 2; font-weight: bold; }
         .ranking-leader { flex: 1; color: #7cb8ff; }
         .ranking-score { flex: 1; font-size: 20px; font-weight: bold; }
-        .clan-card {
-            background: rgba(255,255,255,0.15);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            border-left: 4px solid #7cb8ff;
-        }
         form input, form textarea {
             width: 100%;
             padding: 12px;
@@ -136,7 +128,6 @@ le respect ne se demande pas
             color: white;
             text-decoration: none;
         }
-        .admin-link:hover { background: rgba(255,255,255,0.4); }
         .music-control {
             position: fixed;
             bottom: 20px;
@@ -150,12 +141,13 @@ le respect ne se demande pas
             justify-content: center;
             cursor: pointer;
             font-size: 24px;
-            z-index: 1000;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
         }
         @media (max-width: 768px) {
             .ranking-item { flex-direction: column; text-align: center; }
-            .ranking-leader { margin: 5px 0; }
-            button { padding: 8px 16px; }
         }
     </style>
 </head>
@@ -182,7 +174,7 @@ le respect ne se demande pas
                 <div class="ranking-tab" onclick="showRankingPeriod('month')">📆 Ce Mois</div>
                 <div class="ranking-tab" onclick="showRankingPeriod('year')">🗓️ Cette Année</div>
             </div>
-            <div id="rankingList"></div>
+            <div id="rankingList"><div class="loading">Chargement...</div></div>
         </div>
 
         <div id="register" class="section">
@@ -203,7 +195,7 @@ le respect ne se demande pas
                 <textarea id="forumMessage" placeholder="Votre message" required></textarea>
                 <button type="submit">Publier</button>
             </form>
-            <div id="forumMessages"></div>
+            <div id="forumMessages"><div class="loading">Chargement...</div></div>
         </div>
 
         <div id="private" class="section">
@@ -218,7 +210,32 @@ le respect ne se demande pas
     </div>
 
     <script>
+        // Configuration GitHub
+        const GITHUB_USERNAME = "VOTRE_PSEUDO_GITHUB";
+        const REPO_NAME = "clan-war";
+        
         let currentRankingPeriod = 'week';
+        let backgroundMusic = null;
+        let musicPlaying = false;
+        
+        async function loadData() {
+            try {
+                const url = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/data.json`;
+                const response = await fetch(url + "?t=" + Date.now());
+                const data = await response.json();
+                return data;
+            } catch(e) {
+                console.error("Erreur chargement:", e);
+                return { clans: [], forum: [], private_msgs: [] };
+            }
+        }
+        
+        async function saveData(data) {
+            // GitHub ne permet pas d'écrire directement
+            // On va stocker dans localStorage et l'admin pourra exporter
+            localStorage.setItem('backupData', JSON.stringify(data));
+            return true;
+        }
         
         function playSound(type) {
             try {
@@ -229,27 +246,17 @@ le respect ne se demande pas
                 gainNode.connect(audioContext.destination);
                 oscillator.type = 'sine';
                 gainNode.gain.value = 0.3;
-                switch(type) {
-                    case 'ding':
-                        oscillator.frequency.value = 880;
-                        oscillator.start();
-                        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.5);
-                        break;
-                    case 'pop':
-                        oscillator.frequency.value = 440;
-                        oscillator.start();
-                        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.2);
-                        break;
+                if(type === 'ding') {
+                    oscillator.frequency.value = 880;
+                    oscillator.start();
+                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.5);
                 }
                 setTimeout(() => {
                     oscillator.stop();
                     audioContext.close();
-                }, 800);
-            } catch(e) { console.log("Audio non supporté"); }
+                }, 500);
+            } catch(e) {}
         }
-        
-        let backgroundMusic = null;
-        let musicPlaying = false;
         
         function initMusic() {
             try {
@@ -272,29 +279,11 @@ le respect ne se demande pas
             }
         }
         
-        let clans = JSON.parse(localStorage.getItem('clans') || '[]');
-        let forum = JSON.parse(localStorage.getItem('forum') || '[]');
-        
-        function saveData() {
-            localStorage.setItem('clans', JSON.stringify(clans));
-            localStorage.setItem('forum', JSON.stringify(forum));
-        }
-        
-        function escapeHtml(str) {
-            if(!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if(m === '&') return '&amp;';
-                if(m === '<') return '&lt;';
-                if(m === '>') return '&gt;';
-                return m;
-            });
-        }
-        
         function showSection(sectionId) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.getElementById(sectionId).classList.add('active');
             if(sectionId === 'ranking') updateRanking();
-            if(sectionId === 'forum') displayForum();
+            if(sectionId === 'forum') loadForum();
         }
         
         function showRankingPeriod(period) {
@@ -304,20 +293,19 @@ le respect ne se demande pas
             updateRanking();
         }
         
-        function updateRanking() {
-            let approvedClans = clans.filter(c => c.approved);
+        async function updateRanking() {
+            const data = await loadData();
+            let approvedClans = data.clans.filter(c => c.approved === true);
             
             if(currentRankingPeriod === 'week') {
-                approvedClans.sort((a,b) => (b.scoreWeek || 0) - (a.scoreWeek || 0));
+                approvedClans.sort((a,b) => (b.score_week || 0) - (a.score_week || 0));
             } else if(currentRankingPeriod === 'month') {
-                approvedClans.sort((a,b) => (b.scoreMonth || 0) - (a.scoreMonth || 0));
+                approvedClans.sort((a,b) => (b.score_month || 0) - (a.score_month || 0));
             } else {
-                approvedClans.sort((a,b) => (b.scoreYear || 0) - (a.scoreYear || 0));
+                approvedClans.sort((a,b) => (b.score_year || 0) - (a.score_year || 0));
             }
             
             const container = document.getElementById('rankingList');
-            if(!container) return;
-            
             if(approvedClans.length === 0) {
                 container.innerHTML = '<p>Aucun clan approuvé pour le moment.</p>';
                 return;
@@ -326,8 +314,8 @@ le respect ne se demande pas
             let periodLabel = currentRankingPeriod === 'week' ? 'pts (semaine)' : (currentRankingPeriod === 'month' ? 'pts (mois)' : 'pts (année)');
             
             container.innerHTML = approvedClans.map((clan, index) => {
-                let score = currentRankingPeriod === 'week' ? (clan.scoreWeek || 0) : 
-                           (currentRankingPeriod === 'month' ? (clan.scoreMonth || 0) : (clan.scoreYear || 0));
+                let score = currentRankingPeriod === 'week' ? (clan.score_week || 0) : 
+                           (currentRankingPeriod === 'month' ? (clan.score_month || 0) : (clan.score_year || 0));
                 return `
                     <div class="ranking-item">
                         <span class="ranking-number">#${index+1}</span>
@@ -339,45 +327,14 @@ le respect ne se demande pas
             }).join('');
         }
         
-        document.getElementById('registerForm')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const newClan = {
-                id: Date.now(),
-                name: document.getElementById('clanName').value,
-                leader: document.getElementById('leader').value,
-                description: document.getElementById('description').value,
-                approved: false,
-                scoreWeek: 0,
-                scoreMonth: 0,
-                scoreYear: 0
-            };
-            clans.push(newClan);
-            saveData();
-            playSound('ding');
-            document.getElementById('registerMessage').innerHTML = '<p class="success">✅ Demande envoyée ! En attente d\'approbation.</p>';
-            e.target.reset();
-        });
-        
-        document.getElementById('forumForm')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const newMsg = {
-                id: Date.now(),
-                author: document.getElementById('authorName').value,
-                message: document.getElementById('forumMessage').value,
-                likes: 0,
-                date: new Date().toLocaleString()
-            };
-            forum.unshift(newMsg);
-            saveData();
-            playSound('ding');
-            displayForum();
-            e.target.reset();
-        });
-        
-        function displayForum() {
+        async function loadForum() {
+            const data = await loadData();
             const container = document.getElementById('forumMessages');
-            if(!container) return;
-            container.innerHTML = forum.map(msg => `
+            if(data.forum.length === 0) {
+                container.innerHTML = '<p>Soyez le premier à poster un message !</p>';
+                return;
+            }
+            container.innerHTML = data.forum.map(msg => `
                 <div class="message">
                     <strong>${escapeHtml(msg.author)}</strong> <small>${msg.date}</small><br>
                     ${escapeHtml(msg.message)}<br>
@@ -386,59 +343,85 @@ le respect ne se demande pas
             `).join('');
         }
         
-        function likeMessage(id) {
-            const msg = forum.find(m => m.id === id);
-            if(msg) msg.likes++;
-            saveData();
-            playSound('pop');
-            displayForum();
+        async function likeMessage(id) {
+            let data = await loadData();
+            const msg = data.forum.find(m => m.id == id);
+            if(msg) {
+                msg.likes = (msg.likes || 0) + 1;
+                await saveData(data);
+                loadForum();
+                playSound('ding');
+            }
         }
         
-        document.getElementById('privateForm')?.addEventListener('submit', (e) => {
+        document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            let privateMsgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
+            let data = await loadData();
+            const newClan = {
+                id: Date.now(),
+                name: document.getElementById('clanName').value,
+                leader: document.getElementById('leader').value,
+                description: document.getElementById('description').value,
+                approved: false,
+                score_week: 0,
+                score_month: 0,
+                score_year: 0,
+                created_at: new Date().toISOString()
+            };
+            data.clans.push(newClan);
+            await saveData(data);
+            playSound('ding');
+            document.getElementById('registerMessage').innerHTML = '<p class="success">✅ Demande envoyée ! En attente d\'approbation.</p>';
+            e.target.reset();
+        });
+        
+        document.getElementById('forumForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            let data = await loadData();
             const newMsg = {
                 id: Date.now(),
-                from: document.getElementById('senderName').value,
+                author: document.getElementById('authorName').value,
+                message: document.getElementById('forumMessage').value,
+                likes: 0,
+                date: new Date().toLocaleString()
+            };
+            data.forum.unshift(newMsg);
+            await saveData(data);
+            playSound('ding');
+            loadForum();
+            e.target.reset();
+        });
+        
+        document.getElementById('privateForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            let data = await loadData();
+            const newMsg = {
+                id: Date.now(),
+                sender: document.getElementById('senderName').value,
                 message: document.getElementById('privateMsg').value,
                 date: new Date().toLocaleString()
             };
-            privateMsgs.push(newMsg);
-            localStorage.setItem('privateMsgs', JSON.stringify(privateMsgs));
+            data.private_msgs.push(newMsg);
+            await saveData(data);
             playSound('ding');
             document.getElementById('privateMessage').innerHTML = '<p class="success">✅ Message envoyé aux admins !</p>';
             e.target.reset();
         });
         
-        function checkAndResetScores() {
-            const now = new Date();
-            
-            let lastWeekReset = localStorage.getItem('lastWeekReset');
-            if(!lastWeekReset || (now.getDay() === 1 && new Date(lastWeekReset).getDay() !== 1)) {
-                clans.forEach(clan => { clan.scoreWeek = 0; });
-                localStorage.setItem('lastWeekReset', now.toISOString());
-                saveData();
-            }
-            
-            let lastMonthReset = localStorage.getItem('lastMonthReset');
-            if(!lastMonthReset || (now.getDate() === 1 && new Date(lastMonthReset).getDate() !== 1)) {
-                clans.forEach(clan => { clan.scoreMonth = 0; });
-                localStorage.setItem('lastMonthReset', now.toISOString());
-                saveData();
-            }
-            
-            let lastYearReset = localStorage.getItem('lastYearReset');
-            if(!lastYearReset || (now.getMonth() === 0 && now.getDate() === 1 && new Date(lastYearReset).getMonth() !== 0)) {
-                clans.forEach(clan => { clan.scoreYear = 0; });
-                localStorage.setItem('lastYearReset', now.toISOString());
-                saveData();
-            }
+        function escapeHtml(str) {
+            if(!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if(m === '&') return '&amp;';
+                if(m === '<') return '&lt;';
+                if(m === '>') return '&gt;';
+                return m;
+            });
         }
         
-        checkAndResetScores();
         initMusic();
         updateRanking();
+        loadForum();
+        setInterval(() => { updateRanking(); loadForum(); }, 5000);
     </script>
 </body>
 </html>
-DIANNY .. SHIRO ..NIGHT..𝚂𝙷𝙰𝙳𝙾𝚆 
