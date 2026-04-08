@@ -42,8 +42,6 @@ le respect ne se demande pas
             cursor: pointer;
             font-weight: bold;
             transition: all 0.2s;
-            text-decoration: none;
-            display: inline-block;
         }
         button:hover, .btn:hover {
             transform: scale(1.05);
@@ -60,12 +58,22 @@ le respect ne se demande pas
             border: 1px solid rgba(255,255,255,0.2);
         }
         .section.active { display: block; }
-        .clan-card {
-            background: rgba(255,255,255,0.15);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            border-left: 4px solid #7cb8ff;
+        .ranking-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .ranking-tab {
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .ranking-tab.active {
+            background: #7cb8ff;
+            color: #0a2b4e;
         }
         .ranking-item {
             display: flex;
@@ -81,7 +89,18 @@ le respect ne se demande pas
         .ranking-number {
             font-size: 24px;
             font-weight: bold;
-            color: #7cb8ff;
+            color: #ffd700;
+            min-width: 50px;
+        }
+        .ranking-name { flex: 2; font-weight: bold; }
+        .ranking-leader { flex: 1; color: #7cb8ff; }
+        .ranking-score { flex: 1; font-size: 20px; font-weight: bold; }
+        .clan-card {
+            background: rgba(255,255,255,0.15);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #7cb8ff;
         }
         form input, form textarea {
             width: 100%;
@@ -135,23 +154,19 @@ le respect ne se demande pas
         }
         @media (max-width: 768px) {
             .ranking-item { flex-direction: column; text-align: center; }
+            .ranking-leader { margin: 5px 0; }
             button { padding: 8px 16px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Lien discret vers l'admin (en bas à gauche) -->
         <a href="admin.html" class="admin-link">🔒 Accès Admin</a>
-        
-        <!-- Contrôle musique -->
-        <div class="music-control" onclick="toggleMusic()" id="musicBtn">
-            🎵
-        </div>
+        <div class="music-control" onclick="toggleMusic()" id="musicBtn">🎵</div>
         
         <header>
             <h1>🏆 Clan Wars 🏆</h1>
-            <p>Le classement officiel géré par <span class="joyboy">Joyboy</span></p>
+            <p>Classement des clans - <span class="joyboy">Joyboy</span></p>
             <nav>
                 <button onclick="showSection('ranking')">🏅 Classement</button>
                 <button onclick="showSection('register')">📝 Inscription Clan</button>
@@ -160,13 +175,16 @@ le respect ne se demande pas
             </nav>
         </header>
 
-        <!-- Classement -->
         <div id="ranking" class="section active">
-            <h2>🏆 Top des Clans</h2>
+            <h2>🏆 Classement des Clans</h2>
+            <div class="ranking-tabs">
+                <div class="ranking-tab active" onclick="showRankingPeriod('week')">📅 Cette Semaine</div>
+                <div class="ranking-tab" onclick="showRankingPeriod('month')">📆 Ce Mois</div>
+                <div class="ranking-tab" onclick="showRankingPeriod('year')">🗓️ Cette Année</div>
+            </div>
             <div id="rankingList"></div>
         </div>
 
-        <!-- Inscription -->
         <div id="register" class="section">
             <h2>📝 Inscription de votre Clan</h2>
             <form id="registerForm">
@@ -178,7 +196,6 @@ le respect ne se demande pas
             <div id="registerMessage"></div>
         </div>
 
-        <!-- Forum -->
         <div id="forum" class="section">
             <h2>💬 Forum Public</h2>
             <form id="forumForm">
@@ -189,7 +206,6 @@ le respect ne se demande pas
             <div id="forumMessages"></div>
         </div>
 
-        <!-- Message Privé -->
         <div id="private" class="section">
             <h2>✉️ Envoyer un message aux Admins</h2>
             <form id="privateForm">
@@ -202,7 +218,8 @@ le respect ne se demande pas
     </div>
 
     <script>
-        // ========== SONS ==========
+        let currentRankingPeriod = 'week';
+        
         function playSound(type) {
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -231,7 +248,6 @@ le respect ne se demande pas
             } catch(e) { console.log("Audio non supporté"); }
         }
         
-        // ========== MUSIQUE ==========
         let backgroundMusic = null;
         let musicPlaying = false;
         
@@ -240,7 +256,7 @@ le respect ne se demande pas
                 backgroundMusic = new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
                 backgroundMusic.loop = true;
                 backgroundMusic.volume = 0.2;
-            } catch(e) { console.log("Musique non disponible"); }
+            } catch(e) {}
         }
         
         function toggleMusic() {
@@ -256,7 +272,6 @@ le respect ne se demande pas
             }
         }
         
-        // ========== DONNÉES ==========
         let clans = JSON.parse(localStorage.getItem('clans') || '[]');
         let forum = JSON.parse(localStorage.getItem('forum') || '[]');
         
@@ -282,7 +297,48 @@ le respect ne se demande pas
             if(sectionId === 'forum') displayForum();
         }
         
-        // ========== INSCRIPTION ==========
+        function showRankingPeriod(period) {
+            currentRankingPeriod = period;
+            document.querySelectorAll('.ranking-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            updateRanking();
+        }
+        
+        function updateRanking() {
+            let approvedClans = clans.filter(c => c.approved);
+            
+            if(currentRankingPeriod === 'week') {
+                approvedClans.sort((a,b) => (b.scoreWeek || 0) - (a.scoreWeek || 0));
+            } else if(currentRankingPeriod === 'month') {
+                approvedClans.sort((a,b) => (b.scoreMonth || 0) - (a.scoreMonth || 0));
+            } else {
+                approvedClans.sort((a,b) => (b.scoreYear || 0) - (a.scoreYear || 0));
+            }
+            
+            const container = document.getElementById('rankingList');
+            if(!container) return;
+            
+            if(approvedClans.length === 0) {
+                container.innerHTML = '<p>Aucun clan approuvé pour le moment.</p>';
+                return;
+            }
+            
+            let periodLabel = currentRankingPeriod === 'week' ? 'pts (semaine)' : (currentRankingPeriod === 'month' ? 'pts (mois)' : 'pts (année)');
+            
+            container.innerHTML = approvedClans.map((clan, index) => {
+                let score = currentRankingPeriod === 'week' ? (clan.scoreWeek || 0) : 
+                           (currentRankingPeriod === 'month' ? (clan.scoreMonth || 0) : (clan.scoreYear || 0));
+                return `
+                    <div class="ranking-item">
+                        <span class="ranking-number">#${index+1}</span>
+                        <span class="ranking-name">🏰 ${escapeHtml(clan.name)}</span>
+                        <span class="ranking-leader">👑 ${escapeHtml(clan.leader)}</span>
+                        <span class="ranking-score">⭐ ${score} ${periodLabel}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
         document.getElementById('registerForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
             const newClan = {
@@ -291,7 +347,9 @@ le respect ne se demande pas
                 leader: document.getElementById('leader').value,
                 description: document.getElementById('description').value,
                 approved: false,
-                score: 0
+                scoreWeek: 0,
+                scoreMonth: 0,
+                scoreYear: 0
             };
             clans.push(newClan);
             saveData();
@@ -300,7 +358,6 @@ le respect ne se demande pas
             e.target.reset();
         });
         
-        // ========== FORUM ==========
         document.getElementById('forumForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
             const newMsg = {
@@ -337,7 +394,6 @@ le respect ne se demande pas
             displayForum();
         }
         
-        // ========== MESSAGE PRIVÉ ==========
         document.getElementById('privateForm')?.addEventListener('submit', (e) => {
             e.preventDefault();
             let privateMsgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
@@ -354,28 +410,35 @@ le respect ne se demande pas
             e.target.reset();
         });
         
-        // ========== CLASSEMENT ==========
-        function updateRanking() {
-            const approvedClans = clans.filter(c => c.approved).sort((a,b) => b.score - a.score);
-            const container = document.getElementById('rankingList');
-            if(!container) return;
-            if(approvedClans.length === 0) {
-                container.innerHTML = '<p>Aucun clan approuvé pour le moment.</p>';
-                return;
+        function checkAndResetScores() {
+            const now = new Date();
+            
+            let lastWeekReset = localStorage.getItem('lastWeekReset');
+            if(!lastWeekReset || (now.getDay() === 1 && new Date(lastWeekReset).getDay() !== 1)) {
+                clans.forEach(clan => { clan.scoreWeek = 0; });
+                localStorage.setItem('lastWeekReset', now.toISOString());
+                saveData();
             }
-            container.innerHTML = approvedClans.map((clan, index) => `
-                <div class="ranking-item">
-                    <span class="ranking-number">#${index+1}</span>
-                    <strong>${escapeHtml(clan.name)}</strong>
-                    <span>Chef: ${escapeHtml(clan.leader)}</span>
-                    <span>⭐ Score: ${clan.score} pts</span>
-                </div>
-            `).join('');
+            
+            let lastMonthReset = localStorage.getItem('lastMonthReset');
+            if(!lastMonthReset || (now.getDate() === 1 && new Date(lastMonthReset).getDate() !== 1)) {
+                clans.forEach(clan => { clan.scoreMonth = 0; });
+                localStorage.setItem('lastMonthReset', now.toISOString());
+                saveData();
+            }
+            
+            let lastYearReset = localStorage.getItem('lastYearReset');
+            if(!lastYearReset || (now.getMonth() === 0 && now.getDate() === 1 && new Date(lastYearReset).getMonth() !== 0)) {
+                clans.forEach(clan => { clan.scoreYear = 0; });
+                localStorage.setItem('lastYearReset', now.toISOString());
+                saveData();
+            }
         }
         
+        checkAndResetScores();
         initMusic();
         updateRanking();
     </script>
 </body>
 </html>
-INFO PURGE 24 PRODUCTION by JOYBOY
+DIANNY .. SHIRO ..NIGHT..𝚂𝙷𝙰𝙳𝙾𝚆 
