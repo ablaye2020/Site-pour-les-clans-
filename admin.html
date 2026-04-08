@@ -1,0 +1,277 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Clan Wars</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #0a2b4e, #1a4a7a);
+            color: #ffffff;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header {
+            text-align: center;
+            padding: 30px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            margin-bottom: 30px;
+        }
+        h1 { color: #ff6b35; }
+        button {
+            padding: 12px 24px;
+            background: #ffffff;
+            border: none;
+            border-radius: 25px;
+            color: #0a2b4e;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover { background: #7cb8ff; color: white; }
+        .clan-card, .admin-card {
+            background: rgba(255,255,255,0.15);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        input {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 8px;
+            border: none;
+        }
+        .login-box {
+            max-width: 400px;
+            margin: 50px auto;
+            background: rgba(255,255,255,0.15);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+        }
+        .error { color: #ffaa44; }
+        .message {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: white;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loginScreen" class="login-box">
+            <h2>🔐 Accès Administration</h2>
+            <p>Réservé à Joyboy et ses admins</p>
+            <form id="loginForm">
+                <input type="text" id="loginUsername" placeholder="Pseudo" required>
+                <input type="password" id="loginPassword" placeholder="Mot de passe" required>
+                <button type="submit">Se connecter</button>
+            </form>
+            <div id="loginError" class="error"></div>
+            <a href="index.html" class="back-link">← Retour au site public</a>
+        </div>
+
+        <div id="adminPanel" style="display:none;">
+            <header>
+                <h1>👑 Panel Administration</h1>
+                <p>Bienvenue, <span id="currentAdminName"></span></p>
+                <button onclick="logout()">🚪 Déconnexion</button>
+                <a href="index.html"><button>🏠 Voir le site public</button></a>
+            </header>
+
+            <h2>📋 Gestion des Admins</h2>
+            <div id="adminList"></div>
+            <form id="addAdminForm">
+                <input type="text" id="newAdminName" placeholder="Pseudo" required>
+                <input type="password" id="newAdminPass" placeholder="Mot de passe" required>
+                <button type="submit">➕ Ajouter un admin</button>
+            </form>
+
+            <h2>⏳ Clans en attente</h2>
+            <div id="pendingClans"></div>
+
+            <h2>⭐ Entrer les notes des clans</h2>
+            <div id="scoreInputs"></div>
+
+            <h2>📬 Messages reçus</h2>
+            <div id="adminMessages"></div>
+        </div>
+    </div>
+
+    <script>
+        function playSound(type) {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.3;
+                if(type === 'success') {
+                    oscillator.frequency.value = 523.25;
+                    oscillator.start();
+                    setTimeout(() => { oscillator.frequency.value = 659.25; }, 100);
+                    setTimeout(() => { oscillator.frequency.value = 783.99; }, 200);
+                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.8);
+                }
+                setTimeout(() => { oscillator.stop(); audioContext.close(); }, 800);
+            } catch(e) {}
+        }
+
+        let admins = JSON.parse(localStorage.getItem('admins') || '[{"username":"joyboy","password":"joyboy123","isMaster":true}]');
+        let clans = JSON.parse(localStorage.getItem('clans') || '[]');
+        let privateMsgs = JSON.parse(localStorage.getItem('privateMsgs') || '[]');
+        let currentAdmin = null;
+
+        function saveData() {
+            localStorage.setItem('admins', JSON.stringify(admins));
+            localStorage.setItem('clans', JSON.stringify(clans));
+            localStorage.setItem('privateMsgs', JSON.stringify(privateMsgs));
+        }
+
+        function escapeHtml(str) {
+            if(!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if(m === '&') return '&amp;';
+                if(m === '<') return '&lt;';
+                if(m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // Connexion
+        document.getElementById('loginForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            const admin = admins.find(a => a.username === username && a.password === password);
+            if(admin) {
+                currentAdmin = admin;
+                playSound('success');
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+                document.getElementById('currentAdminName').innerText = currentAdmin.username;
+                updateAdminPanel();
+            } else {
+                document.getElementById('loginError').innerText = '❌ Identifiants incorrects';
+            }
+        });
+
+        function logout() {
+            currentAdmin = null;
+            document.getElementById('loginScreen').style.display = 'block';
+            document.getElementById('adminPanel').style.display = 'none';
+        }
+
+        function updateAdminPanel() {
+            if(!currentAdmin) return;
+
+            // Liste des admins
+            const adminContainer = document.getElementById('adminList');
+            if(adminContainer && currentAdmin.isMaster) {
+                adminContainer.innerHTML = admins.map(admin => `
+                    <div class="admin-card">
+                        👤 ${escapeHtml(admin.username)} ${admin.isMaster ? '👑 Maître' : ''}
+                        ${!admin.isMaster ? `<button onclick="removeAdmin('${admin.username}')">❌ Supprimer</button>` : ''}
+                    </div>
+                `).join('');
+            } else if(adminContainer) {
+                adminContainer.innerHTML = '<p>Seul Joyboy peut gérer les admins.</p>';
+            }
+
+            // Clans en attente
+            const pending = clans.filter(c => !c.approved);
+            document.getElementById('pendingClans').innerHTML = pending.map(clan => `
+                <div class="clan-card">
+                    <strong>${escapeHtml(clan.name)}</strong> - Chef: ${escapeHtml(clan.leader)}<br>
+                    ${escapeHtml(clan.description)}<br>
+                    <button onclick="approveClan(${clan.id})">✅ Approuver</button>
+                    <button onclick="deleteClan(${clan.id})">❌ Refuser</button>
+                </div>
+            `).join('');
+
+            // Entrer les notes
+            const approved = clans.filter(c => c.approved);
+            document.getElementById('scoreInputs').innerHTML = approved.map(clan => `
+                <div class="clan-card">
+                    ${escapeHtml(clan.name)} - Score actuel: ${clan.score} pts
+                    <input type="number" id="score_${clan.id}" placeholder="Nouveau score">
+                    <button onclick="updateScore(${clan.id})">Mettre à jour</button>
+                </div>
+            `).join('');
+
+            // Messages
+            document.getElementById('adminMessages').innerHTML = privateMsgs.map(msg => `
+                <div class="message">
+                    <strong>✉️ De: ${escapeHtml(msg.from)}</strong> <small>${msg.date}</small><br>
+                    ${escapeHtml(msg.message)}
+                </div>
+            `).join('');
+        }
+
+        function approveClan(id) {
+            const clan = clans.find(c => c.id === id);
+            if(clan) clan.approved = true;
+            saveData();
+            updateAdminPanel();
+        }
+
+        function deleteClan(id) {
+            clans = clans.filter(c => c.id !== id);
+            saveData();
+            updateAdminPanel();
+        }
+
+        function updateScore(id) {
+            const input = document.getElementById(`score_${id}`);
+            const newScore = parseInt(input.value);
+            if(!isNaN(newScore)) {
+                const clan = clans.find(c => c.id === id);
+                if(clan) clan.score = newScore;
+                saveData();
+                updateAdminPanel();
+                alert('✅ Score mis à jour !');
+            }
+        }
+
+        function removeAdmin(username) {
+            if(currentAdmin && currentAdmin.isMaster) {
+                admins = admins.filter(a => a.username !== username);
+                saveData();
+                updateAdminPanel();
+            }
+        }
+
+        document.getElementById('addAdminForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if(currentAdmin && currentAdmin.isMaster) {
+                const newName = document.getElementById('newAdminName').value;
+                const newPass = document.getElementById('newAdminPass').value;
+                if(!admins.find(a => a.username === newName)) {
+                    admins.push({ username: newName, password: newPass, isMaster: false });
+                    saveData();
+                    updateAdminPanel();
+                    document.getElementById('addAdminForm').reset();
+                    alert(`✅ Admin "${newName}" ajouté !`);
+                } else {
+                    alert('❌ Cet admin existe déjà !');
+                }
+            } else {
+                alert('❌ Seul Joyboy peut ajouter des admins.');
+            }
+        });
+    </script>
+</body>
+</html>
